@@ -193,7 +193,7 @@ flags: 指定可选的参数。例如，可用-s 或者–server 参数指定 Ku
 
 <img src="image/4.png" style="zoom:125%;" />
 
-# 7. 核心概念
+# 7. 核心概念 -- pod
 
 ## 7.1 pod概述
 
@@ -330,3 +330,16 @@ spec:                      #设置该资源的内容
       path: /opt           #挂载设备类型为hostPath，路径为宿主机下的/opt
 ```
 
+## 7.4 Pod的分类
+
+Pod  有两种类型
+
+> 普通  Pod
+
+普通 Pod 一旦被创建，就会被放入到 etcd 中存储，随后会被 Kubernetes Master 调度到某个具体的 Node 上并进行绑定，随后该 Pod 对应的 Node 上的 kubelet 进程实例化成一组相关的 Docker 容器并启动起来。在默认情况下，当 Pod 里某个容器停止时，Kubernetes 会自动检测到这个问题并且重新启动这个 Pod 里某所有容器， 如果 Pod 所在的 Node 宕机，则会将这个 Node 上的所有 Pod 重新调度到其它节点上。
+
+> 静态  Pod
+
+静态 Pod 是由 kubelet 进行管理的仅存在于特定 Node 上的 Pod,它们不能通过 API Server进行管理，无法与 ReplicationController、Deployment 或 DaemonSet 进行关联，并且kubelet 也无法对它们进行健康检查。
+
+# 8. 核心技术 -- controller
