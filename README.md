@@ -259,7 +259,7 @@ spec:                      #设置该资源的内容
                              #Always: 当容器终止退出后，总是重启容器，默认
                              #OnFailure: 当容器异常退出时才重启容器
                              #Never: 当容器终止退出后，从不重启容器
-  nodeSelector:            #选择node节点14     zone: node1  
+  nodeSelector:            #可以根据环境选择node，比如生产和测试环境
   containers:  
   - name: django-pod       #容器的名字  
     image: django:v1.1     #容器使用的镜像地址  
@@ -313,6 +313,16 @@ spec:                      #设置该资源的内容
     - name: volume         #挂载设备的名字，与volumes[*].name 需要对应    
       mountPath: /data     #挂载到容器的某个路径下  
       readOnly: True  
+  affinity:
+  	nodeAffinity:										#节点亲和性
+  		requiredDuringScheduingIgnoreDuringExecution: 	#硬亲和性，表示必须满足条件。软亲和性已弃用
+  			nodeSelectorTerms:
+  			- matchExpressions:
+  				- key: env role
+  				  operator: In
+  				  values:
+  				  - dev
+  				  - test
   volumes:                 #定义一组挂载设备  
   - name: volume           #定义一个挂载设备的名字  
     #meptyDir: {}  
