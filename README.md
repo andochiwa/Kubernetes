@@ -1,4 +1,4 @@
-[集群搭建步骤](./kubeadm_cluster.md)
+[kubeadm集群搭建步骤](./kubeadm_cluster.md)
 
 # 1 k8s基本介绍
 
@@ -147,12 +147,25 @@ kubeadm 是官方社区推出的一个用于快速部署 kubernetes 集群的工
 
 ## 4.3 最终目标
 
-（1） 在所有节点上安装 Docker 和 kubeadm
+1. 在所有节点上安装 Docker 和 kubeadm
+2. 部署 Kubernetes Master
+3. 部署容器网络插件
+4. 部署 Kubernetes Node，将节点加入 Kubernetes 集群中
+5. 部署 Dashboard Web 页面，可视化查看 Kubernetes 资源
 
-（2）部署 Kubernetes Master
+# 5. 集群搭建(二进制方式)
 
-（3）部署容器网络插件
+## 5.1 设置多台虚拟机，安装Linux
 
-（4）部署 Kubernetes Node，将节点加入 Kubernetes 集群中
+## 5.2 初始化系统，包括防火墙等设置，保证机器之间可通信
 
-（5）部署 Dashboard Web 页面，可视化查看 Kubernetes 资源
+## 5.3 为etcd和apiserver自签证书
+
+## 5.4 部署etcd集群
+
+## 5.5 部署master组件
+
+## 5.6 部署node组件
+
+## 5.7 部署集群网络
+
