@@ -155,17 +155,168 @@ kubeadm 是官方社区推出的一个用于快速部署 kubernetes 集群的工
 
 # 5. 集群搭建(二进制方式)
 
-## 5.1 设置多台虚拟机，安装Linux
+1. 设置多台虚拟机，安装Linux
+2. 初始化系统，包括防火墙等设置，保证机器之间可通信
+3. 为etcd和apiserver自签证书
+4. 部署etcd集群
+5. 部署master组件
+6. 部署node组件
+7. 部署集群网络
 
-## 5.2 初始化系统，包括防火墙等设置，保证机器之间可通信
+# 6. K8s集群命令行工具kubectl
 
-## 5.3 为etcd和apiserver自签证书
+## 6.1 kubectl概述
 
-## 5.4 部署etcd集群
+kubectl是k8s集群的命令行工具，通过kubectl能够对集群本身进行管理，并能够在集群上进行容器化应用的安装部署。
 
-## 5.5 部署master组件
+## 6.2 命令语法
 
-## 5.6 部署node组件
+```bash
+kubectl [command] [TYPE] [NAME] [flags]
+command: 指定要对资源执行的操作，如create, get, describe, delete
+TYPE: 指定资源类型，资源类型是大小写敏感的，开发者能够以单数、复数和缩略的形式。
+例如:
+	kubectl get pod pod1
+	kubectl get pods pod1
+	kubectl get po pod1
+NAME: 指定资源的名称，名称也大小写敏感的。如果省略名称，则会显示所有的资源
+例如:
+	kubectl get pods
+flags: 指定可选的参数。例如，可用-s 或者–server 参数指定 Kubernetes APIserver 的地址和端口
+```
 
-## 5.7 部署集群网络
+使用`kubelctl --help`获取更多信息
+
+<img src="image/2.png" style="zoom:125%;" />
+
+<img src="image/3.png" style="zoom:125%;" />
+
+<img src="image/4.png" style="zoom:125%;" />
+
+# 7. 核心概念
+
+## 7.1 pod概述
+
+Pod 是 k8s 系统中可以创建和管理的最小单元，是资源对象模型中由用户创建或部署的最小资源对象模型，也是在 k8s 上运行容器化应用的资源对象，其他的资源对象都是用来支撑或者扩展 Pod 对象功能的，比如控制器对象是用来管控 Pod 对象的，Service 或者Ingress 资源对象是用来暴露 Pod 引用对象的，PersistentVolume 资源对象是用来为 Pod提供存储等等，k8s 不会直接处理容器，而是 Pod，Pod 是由一个或多个 container 组成
+
+Pod 是 Kubernetes 的最重要概念，每一个Pod都有一个特殊的被称为”根容器“的 Pause容器。Pause 容器对应的镜像属于 Kubernetes 平台的一部分，除了Pause容器，每个Pod还包含一个或多个紧密相关的用户业务容器
+
+类似于docker-compose
+
+<img src="image/5.png" style="zoom:125%;" />
+
+<img src="image/6.png" style="zoom:125%;" />
+
+> Pod vs 应用
+
+每个 Pod 都是应用的一个实例，有专用的 IP
+
+> Pod vs 容器
+
+一个 Pod 可以有多个容器，彼此间共享网络和存储资源，每个 Pod 中有一个 Pause 容器保存所有的容器状态， 通过管理 pause 容器，达到管理 pod 中所有容器的效果
+
+> Pod vs 节点
+
+同一个 Pod 中的容器总会被调度到相同 Node 节点，不同节点间 Pod 的通信基于虚拟二层网络技术实现
+
+> Pod vs Pod
+
+普通Pod和静态Pod
+
+## 7.2 pod实现机制
+
+> 资源共享
+
+一个 Pod 里的多个容器可以**共享存储和网络**，可以看作一个逻辑的主机。共享的如namespace, groups 或者其他的隔离资源。
+
+共享网络：多个容器共享同一 network namespace，由此在一个 Pod 里的多个容器共享 Pod 的 IP 和端口 namespace，所以一个 Pod 内的多个容器之间可以通过 localhost 来进行通信,所需要注意的是不同容器要注意不要有端口冲突即可。不同的 Pod 有不同的 IP,不同 Pod 内的多个容器之前通信，不可以使用 IPC（如果没有特殊指定的话）通信，通常情况下使用 Pod的 IP 进行通信。
+
+共享存储：一个 Pod 里的多个容器可以共享存储卷volume，这个存储卷会被定义为 Pod 的一部分，并且可以挂载到该 Pod 里的所有容器的文件系统上。
+
+> 生命周期短暂
+
+Pod 属于生命周期比较短暂的组件，比如，当 Pod 所在节点发生故障，那么该节点上的 Pod会被调度到其他节点，但需要注意的是，被重新调度的 Pod 是一个全新的 Pod,跟之前的Pod 没有任何关系。
+
+> 平坦的网络
+
+K8s 集群中的所有 Pod 都在同一个共享网络地址空间中，也就是说每个 Pod 都可以通过其他 Pod 的 IP 地址来实现访问
+
+## 7.3 yaml配置
+
+```yaml
+apiVersion: v1             #指定api版本，此值必须在kubectl apiversion中  
+kind: Pod                  #指定创建资源的角色/类型  
+metadata:                  #资源的元数据/属性  
+  name: django-pod         #资源的名字，在同一个namespace中必须唯一  
+  labels:                  #设定资源的标签，使这个标签在service网络中备案，以便被获知
+    k8s-app: django
+    version: v1  
+    kubernetes.io/cluster-service: "true"  
+  annotations:             #设置自定义注解列表  
+     - name: String        #设置自定义注解名字  
+spec:                      #设置该资源的内容  
+  restartPolicy: Always    #重启策略:
+                             #Always: 当容器终止退出后，总是重启容器，默认
+                             #OnFailure: 当容器异常退出时才重启容器
+                             #Never: 当容器终止退出后，从不重启容器
+  nodeSelector:            #选择node节点14     zone: node1  
+  containers:  
+  - name: django-pod       #容器的名字  
+    image: django:v1.1     #容器使用的镜像地址  
+    imagePullPolicy: Always #三个选择Always、Never、IfNotPresent，每次启动时检查和更新（从registery）images的策略，
+                             #Always: 每次都检查
+                             #Never: 每次都不检查（不管本地是否有）
+                             #IfNotPresent: 如果本地有就不检查，如果没有就拉取
+    command: ['sh']        #启动容器的运行命令，将覆盖容器中的Entrypoint,对应Dockefile中的ENTRYPOINT  
+    args: ["$(str)"]       #启动容器的命令参数，对应Dockerfile中CMD参数  
+    env:                   #指定容器中的环境变量  
+    - name: str            #变量的名字  
+      value: "/etc/run.sh" #变量的值  
+    resources:             #资源管理
+      requests:            #容器运行时，最低资源需求，也就是说最少需要多少资源容器才能正常运行  
+      cpu: 0.1             #CPU资源（核数），两种方式，浮点数或者是整数+m，0.1=100m，最少值为0.001核（1m）
+        memory: 32Mi       #内存使用量  
+      limits:              #资源限制  
+        cpu: 0.5  
+        memory: 32Mi  
+    ports:  
+    - containerPort: 8080    #容器开发对外的端口
+      name: uwsgi          #名称
+      protocol: TCP  
+    livenessProbe:         #pod内容器健康检查的设置
+      httpGet:             #通过httpget检查健康，返回200-399之间，则认为容器正常  
+        path: /            #URI地址  
+        port: 8080  
+        #host: 127.0.0.1   #主机地址  
+        scheme: HTTP  
+      initialDelaySeconds: 180 #表明第一次检测在容器启动后多长时间后开始  
+      timeoutSeconds: 5    #检测的超时时间  
+      periodSeconds: 15    #检查间隔时间  
+      #也可以用这种方法  
+      #exec: 执行命令的方法进行监测，如果其退出码不为0，则认为容器正常  
+      #  command:  
+      #    - cat  
+      #    - /tmp/health  
+      #也可以用这种方法  
+      #tcpSocket: //通过tcpSocket检查健康   
+      #  port: number   
+    lifecycle:             #生命周期管理(钩子)  
+      postStart:           #容器运行之前运行的任务  
+        exec:  
+          command:  
+            - 'sh'  
+            - 'yum upgrade -y'  
+      preStop:             #容器关闭之前运行的任务  
+        exec:  
+          command: ['service httpd stop']  
+    volumeMounts:          #挂载设置
+    - name: volume         #挂载设备的名字，与volumes[*].name 需要对应    
+      mountPath: /data     #挂载到容器的某个路径下  
+      readOnly: True  
+  volumes:                 #定义一组挂载设备  
+  - name: volume           #定义一个挂载设备的名字  
+    #meptyDir: {}  
+    hostPath:  
+      path: /opt           #挂载设备类型为hostPath，路径为宿主机下的/opt
+```
 
