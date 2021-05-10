@@ -457,3 +457,36 @@ PV 是群集中的资源。PVC 是对这些资源的请求，并且还充当对�
 `Released` – claim 被删除，卷处于释放状态，但未被集群回收。
 
 `Failed` – 卷自动回收失败
+
+# 11 核心技术 -- namespace
+
+Namespace 在很多情况下用于实现多用户的资源隔离，通过将集群内部的资源对象分配到不同的 Namespace 中， 形成逻辑上的分组，便于不同的分组在共享使用整个集群的资源同时还能被分别管理。Kubernetes 集群在启动后，会创建一个名为"default"的 Namespace，如果不特别指明 Namespace,则用户创建的 Pod，RC，Service 都将 被系统 创建到这个默认的名为 default 的 Namespace 中。
+
+# 12 核心技术 -- service(重要)
+
+## 12.1 Service概述
+
+Service 是 Kubernetes 最核心概念，通过创建 Service,可以为一组具有相同功能的容器应用提供一个统一的入口地 址，并且将请求负载分发到后端的各个容器应用上。
+
+## 12.2 Service的定义
+
+yaml 格式的 Service 定义文件
+
+```yaml
+apiVersion: v1 kind: Service matadata:
+name: string namespace: string labels:
+-name: string annotations:
+-name: string spec:
+selector: [] type: string clusterIP: string
+sessionAffinity: string ports:
+-name: string protocol: string port: int targetPort: int nodePort: int
+status: loadBalancer:
+ingress:
+ip: string hostname: string
+```
+
+## 12.3 常见类型
+
+1. `ClusterIP` 集群内部使用
+2. `NodePort` 对外访问应用使用
+3. `LoadBalancer` 对外访问应用使用（公有云）
