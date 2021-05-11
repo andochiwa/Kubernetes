@@ -1,5 +1,7 @@
 [kubeadm集群搭建步骤](./kubeadm_cluster.md)
 
+[kubeadm高可用集群搭建步骤](./kubeadm_high_availability_cluster.md)
+
 # 1 k8s基本介绍
 
 kubernetes，简称 K8s，是用 8 代替 8 个字符“ubernete”而成的缩写。是一个开源的，用于管理云平台中多个主机上的容器化的应用，Kubernetes 的目标是让部署容器化的应用简单并且高效（powerful）,Kubernetes 提供了应用部署，规划，更新，维护的一种机制。
@@ -1041,3 +1043,5 @@ Helm 最核心的就是模板，即模板化的 K8S manifests 文件。
 
 1. `keepalived` 监控master的状态，为master分配虚拟ip
 2. `haproxy` 做master的负载均衡
+
+[部署步骤](./kubeadm_high_availability_cluster.md)
