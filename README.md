@@ -1023,7 +1023,7 @@ https://www.weave.works/docs/scope/latest/introducing/
 
 [chart构建，配置文档](https://helm.sh/zh/docs/topics/charts/)
 
-### 17.6 chart模板
+## 17.6 chart模板
 
 Helm 最核心的就是模板，即模板化的 K8S manifests 文件。
 
@@ -1032,3 +1032,12 @@ Helm 最核心的就是模板，即模板化的 K8S manifests 文件。
 有了模板，我们怎么把我们的配置融入进去呢？用的就是这个 values 文件。这两部分内容其实就是 chart 的核心功能。
 
 [官方文档](https://helm.sh/zh/docs/chart_template_guide/getting_started/)
+
+# 18 高可用集群(多master)
+
+所有master请求发给load balancer，然后load balancer来分发给node节点。
+
+## 18.1 高可用集群技术
+
+1. `keepalived` 监控master的状态，为master分配虚拟ip
+2. `haproxy` 做master的负载均衡
