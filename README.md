@@ -1021,3 +1021,14 @@ https://www.weave.works/docs/scope/latest/introducing/
 #修改 service Type: NodePort 即可访问 ui
 ```
 
+[chart构建，配置文档](https://helm.sh/zh/docs/topics/charts/)
+
+### 17.6 chart模板
+
+Helm 最核心的就是模板，即模板化的 K8S manifests 文件。
+
+它本质上就是一个 Go 的 template 模板。Helm 在 Go template 模板的基础上，还会增加很多东西。如一些自定义的元数据信息、扩展的库以及一些类似于编程形式的工作流，例如条件语句、管道等等。这些东西都会使得我们的模板变得更加丰富。
+
+有了模板，我们怎么把我们的配置融入进去呢？用的就是这个 values 文件。这两部分内容其实就是 chart 的核心功能。
+
+[官方文档](https://helm.sh/zh/docs/chart_template_guide/getting_started/)
