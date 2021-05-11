@@ -490,3 +490,82 @@ ip: string hostname: string
 1. `ClusterIP` 集群内部使用
 2. `NodePort` 对外访问应用使用
 3. `LoadBalancer` 对外访问应用使用（公有云）
+
+## 13 核心技术 -- Secret
+
+## 13.1 Secret存在意义
+
+加密数据存在etcd里面，让pod容器以挂载volume方式进行访问
+
+Secret 解决了密码、token、密钥等敏感数据的配置问题，而不需要把这些敏感数据暴露到镜像或者 Pod Spec 中。Secret 可以以 Volume 或者环境变量的方式使用
+
+## 13.2 Secret 有三种类型
+
+• Service Account :用来访问 Kubernetes API,由 Kubernetes 自动创建，并且会自动挂
+载到 Pod 的/run/secrets/kubernetes.io/serviceaccount 目录中
+
+• Opaque : base64 编码格式的 Secret,用来存储密码、密钥等
+
+• kubernetes.io/dockerconfigjson ：用来存储私有 docker registry 的认证信息
+
+# 14 核心技术 -- 探针
+
+## 14.1 探针类型
+
+K8s 中存在两种类型的探针：liveness probe 和 readiness probe。
+
+## 14.2 liveness probe（存活探针）
+
+用于判断容器是否存活，即 Pod 是否为 running 状态，如果 LivenessProbe 探针探测到容器不健康，则 kubelet 将 kill 掉容器，并根据容器的重启策略是否重启。
+
+如果一个容器不包含 LivenessProbe 探针，则 Kubelet 认为容器的 LivenessProbe 探针的返回值永远成功。有时应用程序可能因为某些原因（后端服务故障等）导致暂时无法对外提供服务，但应用软件没有终止，导致 K8S 无法隔离有故障的 pod，调用者可能会访问到有故障的 pod，导致业务不稳定。K8S 提供 livenessProbe 来检测应用程序是否正常运行，并且对相应状况进行相应的补救措施。
+
+## 14.3 readiness probe（就绪探针）
+
+用于判断容器是否启动完成，即容器的 Ready 是否为 True，可以接收请求，如果ReadinessProbe 探测失败，则容器的 Ready 将为 False，控制器将此 Pod 的 Endpoint 从对应的 service 的 Endpoint 列表中移除，从此不再将任何请求调度此 Pod 上，直到下次探测成功。通过使用 Readiness 探针，Kubernetes 能够等待应用程序完全启动，然后才允许服务将流量发送到新副本。
+
+比如使用 tomcat 的应用程序来说，并不是简单地说 tomcat 启动成功就可以对外提供服务的，还需要等待 spring 容器初始化，数据库连接没连上等等。对于 spring boot 应用，默认的 actuator 带有/health 接口，可以用来进行启动成功的判断。
+
+<img src="./image/7.png" style="zoom:125%;" />
+
+## 14.4 三种探测方法
+
+> exec
+
+通过执行命令来检查服务是否正常，针对复杂检测或无 HTTP 接口的服务，命令返回值为 0 则表示容器健康。
+
+> httpGet
+
+通过发送 http 请求检查服务是否正常，返回 200-399 状态码则表明容器健康。
+
+> tcpSocket
+
+通过容器的 IP 和 Port 执行 TCP 检查，如果能够建立 TCP 连接，则表明容器健康。
+
+## 14.5 探针探测的结果
+
+> Success
+
+Container 通过了检查。
+
+> Failure
+
+Container 未通过检查。
+
+> Unknown
+
+未能执行检查，因此不采取任何措施。
+
+## 14.6 Pod  重启策略
+
+> Always:
+
+总是重启
+
+> OnFailure:
+
+如果失败就重启
+
+> Never:
+
+永远不重启
