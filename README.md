@@ -758,5 +758,266 @@ kubectl taint node kube-node1 node-type-
 kubectl patch nodes kube-node1 -p '{"spec":{"taints":[]}}'
 ```
 
+# 16 核心技术 -- 集群安全机制 RBAC
 
+## 16.1 基本概念
+
+RBAC(Role-Based Access Control，基于角色的访问控制)在 k8s v1.5 中引入，在 v1.6 版本时升级为 Beta 版本，并成为 kubeadm 安装方式下的默认选项，相对于其他访问控制方式，新的 RBAC 具有如下优势：
+
+1. 对集群中的资源和非资源权限均有完整的覆盖
+2. 整个 RBAC 完全由几个 API 对象完成，同其他 API 对象一样，可以用 kubectl 或 API进行操作
+3. 可以在运行时进行调整，无需重启 API Server要使用 RBAC 授权模式，需要在 API Server 的启动参数中加上--authorization-mode=RBAC
+
+## 16.2 RBAC 原理和用法
+
+2.1 RBAC 的 的 API  资源对象说明
+RBAC 引入了 4 个新的顶级资源对象：`Role、ClusterRole、RoleBinding、ClusterRoleBinding`。同其他 API 资源对象一样，用户可以使用 kubectl 或者 API 调用等方式操作这些资源对象。
+
+> 角色 (Role)
+
+一个角色就是一组权限的集合，这里的权限都是许可形式的，不存在拒绝的规则。在一个命名空间中，可以用角色来定义一个角色，如果是集群级别的，就需要使用 `ClusterRole`了。角色只能对命名空间内的资源进行授权，下面的例子中定义的角色具备读取 Pod 的权限：
+
+```yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: pod-reader
+
+rules:
+- apiGroups: [""] # 空字符串表示核心 API 群
+  resource: ["pods"]
+  verbs: ["get", "watch", "list"]
+```
+
+rules 中的参数说明：
+
+`apiGroup`：支持的 API 组列表，例如：APIVersion: batch/v1、APIVersion: extensions: v1、APIVersion: apps/v1 等
+
+`resources`：支持的资源对象列表，例如：pods、deployments、jobs 等
+
+`verbs`：对资源对象的操作方法列表，例如：get、watch、list、delete、replace 等
+
+> 集群角色 (ClusterRole)
+
+集群角色除了具有和角色一致的命名空间内资源的管理能力，因其集群级别的范围，还可
+以用于以下特殊元素的授权。
+
+集群范围的资源，例如 Node
+
+非资源型的路径，例如/healthz
+
+包含全部命名空间的资源，例如 pods
+
+下面的集群角色可以让用户有权访问任意一个或所有命名空间的 secrets：
+
+```yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  # name: secret-reader
+  # ClusterRole 不受限于命名空间，所以省略了 namespace name 的定义
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "watch", "list"]
+```
+
+> 角色绑定 (RoleBinding) 和集群角色绑定 (ClusterRoleBinding)
+
+角色绑定或集群角色绑定用来把一个角色绑定到一个目标上，绑定目标可以是 User、Group 或者 Service Account。使用 RoleBinding 为某个命名空间授权，ClusterRoleBinding 为集群范围内授权。
+
+RoleBinding 可以引用 Role 进行授权，下例中的 RoleBinding 将在 default 命名空间中把pod-reader 角色授予用户 jane，可以让 jane 用户读取 default 命名空间的 Pod：
+
+```yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+- kind: User
+  name: jane
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+
+RoleBinding 也可以引用 ClusterRole，对属于同一命名空间内 ClusterRole 定义的资源主体进行授权。一种常见的做法是集群管理员为集群范围预先定义好一组角色(ClusterRole)，然后在多个命名空间中重复使用这些 ClusterRole。
+
+使用 RoleBinding 绑定集群角色 secret-reader，使 dave 只能读取 development 命名空间中的 secret：
+
+```yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: read-secrets
+  namespace: development
+subjects:
+- kind: User
+  name: dave
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: secret-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+
+集群角色绑定中的角色只能是集群角色，用于进行集群级别或者对所有命名空间都生效授权。允许 manager 组的用户读取任意 namespace 中的 secret
+
+```yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: read-secrets-global
+subjects:
+- kind: Group
+  name: manager
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: secret-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+
+> RBAC对资源的引用方式
+
+多数资源可以用其名称的字符串来表达，也就是 Endpoint 中的 URL 相对路径，例如 pods。然后，某些 Kubernetes API 包含下级资源，例如 Pod 的日志(logs)。Pod 日志的 Endpoint是 GET /api/v1/namespaces/{namespaces}/pods/{name}/log。
+
+Pod 是一个命名空间内的资源，log 就是一个下级资源。要在一个 RBAC 角色中体现，则需要用斜线/来分割资源和下级资源。若想授权让某个主体同时能够读取 Pod 和 Pod log，则可以配置 resources 为一个数组：
+
+```yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: pod-and-pod-logs-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list"]
+```
+
+资源还可以通过名字(ResourceName)进行引用。在指定 ResourceName 后，使用 get、delete、update、patch 动词的请求，就会被限制在这个资源实例范围内。例如下面的声明让一个主体只能对一个叫 my-configmap 的 configmap 进行 get 和 update 操作：
+
+```yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: configmap-updater
+rules:
+- apiGroups: [""]
+  resources: ["configmap"]
+  resourceNames: ["my-configmap"]
+  verbs: ["update", "get"]
+```
+
+# 17 核心技术 -- Helm
+
+[官方文档](https://helm.sh/zh/)
+
+## 17.1 Helm 引入
+
+K8S 上的应用对象，都是由特定的资源描述组成，包括 deployment、service 等。都保存各自文件中或者集中写到一个配置文件。然后 kubectl apply –f 部署。如果应用只由一个或几个这样的服务组成，上面部署方式足够了。而对于一个复杂的应用，会有很多类似上面的资源描述文件，例如微服务架构应用，组成应用的服务可能多达十个，几十个。如果有更新或回滚应用的需求，可能要修改和维护所涉及的大量资源文件，而这种组织和管理应用的方式就显得力不从心了。且由于缺少对发布过的应用版本管理和控制，使Kubernetes 上的应用维护和更新等面临诸多的挑战，主要面临以下问题：
+
+1. 如何将这些服务作为一个整体管理
+2. 这些资源文件如何高效复用 
+3. 不支持应用级别的版本管理
+
+## 17.2 Helm 介绍
+
+Helm 是一个 Kubernetes 的包管理工具，就像 Linux 下的包管理器，如 yum/apt 等，可以
+很方便的将之前打包好的 yaml 文件部署到 kubernetes 上。
+Helm 有 3 个重要概念：
+
+1. **helm**：一个命令行客户端工具，主要用于 Kubernetes 应用 chart 的创建、打包、发布和管理。
+2. **Chart**：应用描述，一系列用于描述 k8s 资源相关文件的集合。
+3. **Release**：基于 Chart 的部署实体，一个 chart 被 Helm 运行后将会生成对应的一个release；将在 k8s 中创建出真实运行的资源对象。
+
+## 17.3 Helm v3 变化
+
+2019 年 11 月 13 日， Helm 团队发布 Helm v3 的第一个稳定版本。
+
+该版本主要变化如下：
+
+架构变化：
+
+1. 最明显的变化是 Tiller 的删除
+2. Release 名称可以在不同命名空间重用
+3. 支持将 Chart 推送至 Docker 镜像仓库中
+4. 使用 JSONSchema 验证 chart values
+5. 其他
+
+![](./image/11.png)
+
+## 17.4 Helm 客户端
+
+Helm 客户端下载地址：https://github.com/helm/helm/releases
+
+解压移动到/usr/bin/目录即可。
+
+```bash
+wget https://get.helm.sh/helm-vv3.2.1-linux-amd64.tar.gz
+tar zxvf helm-v3.2.1-linux-amd64.tar.gz
+mv linux-amd64/helm /usr/bin/
+```
+
+|    命令    |                             描述                             |
+| :--------: | :----------------------------------------------------------: |
+| dependency |                       管理 chart 依赖                        |
+|    get     | 下载一个 release。可用子命令：all、hooks、manifest、notes、values |
+|  history   |                      获取 release 历史                       |
+|  install   |                        安装一个 chart                        |
+|    list    |                         列出 release                         |
+|  package   |             将 chart 目录打包到 chart 存档文件中             |
+|    pull    | 从远程仓库中下载 chart 并解压到本地 # helm pull stable/mysql --<br/>untar |
+|    repo    | 添加，列出，移除，更新和索引 chart 仓库。可用子命令：add、index、<br/>list、remove、update |
+|  rollback  |                        从之前版本回滚                        |
+|   search   |         根据关键字搜索 chart。可用子命令：hub、repo          |
+|    show    | 查看 chart 详细信息。可用子命令：all、chart、readme、values  |
+|   status   |                     显示已命名版本的状态                     |
+|  template  |                         本地呈现模板                         |
+| uninstall  |                       卸载一个 release                       |
+|  upgrade   |                       更新一个 release                       |
+|  version   |                     查看 helm 客户端版本                     |
+
+## 17.5 helm  基本使用
+
+主要介绍三个命令：
+
+* chart install
+* chart upgrade
+* chart rollback
+
+```bash
+#查找 chart
+helm search repo weave
+
+#查看 chrt 信息
+helm show chart stable/mysql
+#安装包
+helm install ui stable/weave-scope
+#查看发布状态
+helm list
+
+helm status ui
+NAME: ui
+LAST DEPLOYED: Thu May 2817:45:012020
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+NOTES:
+You should now be able to access the Scope frontend in your web browser, by
+using kubectl port-forward:
+kubectl -n default port-forward $(kubectl -n default get endpoints \
+ui-weave-scope -o jsonpath='{.subsets[0].addresses[0].targetRef.name}')
+8080:4040
+then browsing to http://localhost:8080/.
+For more details on using Weave Scope, see the Weave Scope documentation:
+https://www.weave.works/docs/scope/latest/introducing/
+#修改 service Type: NodePort 即可访问 ui
+```
 
